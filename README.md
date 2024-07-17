@@ -7,7 +7,8 @@ Install packages in requirements.txt. Tested with Python 3.9.6.
 Install Python and Tensorflow.
 
 # T3-PINNS
-This project involves developing a PINN to solve the laplace problem Δ𝜂 = −𝑑∗ (𝑑𝑥𝑖 ) for a 0-form and check if it has zeros on some metric we must find.
+This project involves developing a PINN to solve the laplace problem Δ𝜂 = −𝑑∗ (𝑑𝑥𝑖 ) for a 0-form and check if it has zeros on some metric, g, we must find.
+
 
 # Project 2
 Does there exist a metric on the 3-dimensional torus 𝑇3 such that every harmonic 1-form has a
