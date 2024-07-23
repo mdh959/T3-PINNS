@@ -15,7 +15,7 @@ class SineActivation(Layer):
         return tf.concat([tf.sin(2 * np.pi * inputs), tf.cos(2 * np.pi * inputs)], 1)
 
 class PINN:
-    def __init__(self):
+    def __init__(self,g):
         # Define the neural network model
         self.model = tf.keras.models.Sequential([
             tf.keras.layers.Input((3,)),  # Input layer with 3 inputs: x1, x2, x3
@@ -25,22 +25,39 @@ class PINN:
             tf.keras.layers.Dense(units=32, activation='tanh'),
             tf.keras.layers.Dense(units=3)  # Output layer for f1, f2, f3
         ])
-
+        self.g = tf.convert_to_tensor(g, dtype=tf.float64)
     def partial_derivative(self, tape, u, x, dim):
         du_dx = tape.gradient(u, x)
         return du_dx[:, dim]  # extracting the partial derivative w.r.t specified dimension
 
     def hodge_star_1_form(self, u):
         u1, u2, u3 = u[:, 0:1], u[:, 1:2], u[:, 2:3]
-
+    
+        # Define the metric tensor g and compute its determinant and inverse
+        g_det = tf.linalg.det(self.g)
+        g_inv = tf.linalg.inv(self.g)
+    
+        # Construct the (u1, u2, u3) vector
+        u_vec = tf.concat([u1, -u2, u3], axis=1)
+    
+        # Compute the sqrt(det(g)) * g_inv * u_vec
+        sqrt_det_g = tf.sqrt(g_det)
+        transformed_vec = sqrt_det_g * tf.matmul(u_vec, g_inv)
+    
+        # Extract the components
+        alpha = transformed_vec[:, 0:1]
+        beta = transformed_vec[:, 1:2]
+        gamma = transformed_vec[:, 2:3]
+    
         # Hodge star operation
         star_u = tf.concat([
-            u1,    # coefficient of dx2 ^ dx3
-            -u2,   # coefficient of dx1 ^ dx3
-            u3     # coefficient of dx1 ^ dx2
+            alpha,    # coefficient of dx2 ^ dx3
+            beta,    # coefficient of dx3 ^ dx1
+            gamma     # coefficient of dx1 ^ dx2
         ], axis=1)
-
+    
         return star_u
+
 
     def hodge_star_2_form(self, d_u):
         df2_dx3 = d_u[:, 3:4]
@@ -106,7 +123,7 @@ class PINN:
             hodge_star_d_hodge_star_d_u = self.hodge_star_2_form(d_hodge_star_d_u)
 
             # Sum RH and LH terms of PDE
-            sum_tensor =  hodge_star_d_hodge_star_d_u + d_hodge_star_d_hodge_star_u 
+            sum_tensor = d_hodge_star_d_hodge_star_u  + hodge_star_d_hodge_star_d_u 
 
             # Compute the loss based on sum_tensor
             loss = tf.reduce_mean(tf.square(sum_tensor))
@@ -159,9 +176,13 @@ if __name__ == '__main__':
     num_samples = 1000
     x_collocation = np.random.uniform(low=0, high=1, size=(num_samples, 3))
     x_collocation = tf.convert_to_tensor(x_collocation, dtype=tf.float64)
-
+    g = np.array([
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0]
+    ])
     # Initialise PINN model
-    pinn = PINN()
+    pinn = PINN(g)
 
     # Train the model
     pinn.train(x_collocation, epochs=100, learning_rate=0.001)
