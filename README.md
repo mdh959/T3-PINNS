@@ -24,7 +24,7 @@ Project outline:
 
 - Implemented a PINN the identity metric initially to simplify task: T3_PINN_simple.py.
 - Following from this, altered architecture to include any general constant metric: T3_constant_metric.py.
-- Calculcated loss point by point to allow for an input dependent metric:T3_random_PINN.py
+- Calculcated loss point by point to allow for an input dependent metric: T3_random_PINN.py
 - Following suggestion from supervisor, explored the metric outlined in [this paper (2)](https://www.researchgate.net/publication/34310555_Harmonic_forms_under_metric_and_topological_perturbations) but created a 3D version: T3_Kerofsky.py
 - Adjusted PINNs loss function to learn all 3 one forms so effectvely search for zeros: T3_3_1forms.py.
 
