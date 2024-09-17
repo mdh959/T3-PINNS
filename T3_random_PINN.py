@@ -2,8 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from scipy.optimize import minimize
+from scipy.optimize import minimize, differential_evolution
 
 # Set the floating point precision
 tf.keras.backend.set_floatx('float64')
@@ -81,7 +80,7 @@ class PINN:
     
         return star_u
 
-    def exterior_derivative_1_form(self, tape, u, x):
+    def exterior_derivative_1_form(self, tape, u, x): # Exterior derivative on a 1-form
         du1_dx2 = self.partial_derivative(tape, u[:, 0], x, 1)  # Partial derivative with respect to x2
         du1_dx3 = self.partial_derivative(tape, u[:, 0], x, 2)  # Partial derivative with respect to x3
         du2_dx1 = self.partial_derivative(tape, u[:, 1], x, 0)  # Partial derivative with respect to x1
@@ -91,9 +90,9 @@ class PINN:
 
         d_u = tf.stack([du2_dx3 -du3_dx2,du3_dx1 - du1_dx3, du1_dx2 -du2_dx1], axis=1)
 
-        return d_u
+        return d_u # Output is a 2-form
 
-    def star_derivative_2_form(self, tape, u, x):
+    def star_derivative_2_form(self, tape, u, x): # Hodge star on 3-form
         du1_dx1 = self.partial_derivative(tape, u[:, 0], x, 0)
         du2_dx2 = self.partial_derivative(tape, u[:, 1], x, 1)
         du3_dx3 = self.partial_derivative(tape, u[:, 2], x, 2)
@@ -103,13 +102,13 @@ class PINN:
         sqrt_det_g = tf.sqrt(g_det)
         # Apply the Hodge star operation (multiplying by sqrt(det(g)))
         star_divergence = divergence * sqrt_det_g
-        return star_divergence
+        return star_divergence # Output is a 0-form
 
-    def derivative_function(self, tape, u, x):
+    def derivative_function(self, tape, u, x): # Exterior derivative on a 0-form
         df_dx1 = self.partial_derivative(tape, u, x, 0)  # Partial derivative with respect to x1
         df_dx2 = self.partial_derivative(tape, u, x, 1)  # Partial derivative with respect to x2
         df_dx3 = self.partial_derivative(tape, u, x, 2)  # Partial derivative with respect to x3
-        return tf.stack([df_dx1, df_dx2, df_dx3], axis=1)
+        return tf.stack([df_dx1, df_dx2, df_dx3], axis=1) # Output is a 1-form
     
     def pde_error(self, x, tape):
         x = tf.expand_dims(x, axis=0)
@@ -155,7 +154,7 @@ class PINN:
         outputs = self.model(inputs)
         return outputs
 
-    def plot_learned_1_form(self):
+    def plot_learned_1_form(self): # Plot on T3 to visualise results
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
 
@@ -176,7 +175,7 @@ class PINN:
         ax.quiver(x, y, z, u1, u2, u3, length=0.1, normalize=True)
 
         plt.show()
-    
+    # Zero checker for increasing number of points
     def find_zero_vector(self, num_points_list=[100, 1000, 10000, 100000, 1e6]):
         for num_points in num_points_list:
             print(f"\nTesting with {int(num_points)} points.")
@@ -231,10 +230,9 @@ class PINN:
 
             # Perform the minimization starting from the best point found in the random search
             result_local = minimize(objective_function, min_point, method='Nelder-Mead')
-            best_result = result_local
-            '''
+            
             # Perform a global optimization using Differential Evolution
-            bounds = [(0, 1), (0, 1), (0, 1)]
+            bounds = [(-np.pi, np.pi), (-np.pi, np.pi), (-np.pi, np.pi)]
             result_global = differential_evolution(objective_function, bounds)
             # Choose the best result between global and local optimization
             if result_global.fun < result_local.fun:
@@ -243,18 +241,11 @@ class PINN:
             else:
                 best_result = result_local
                 print(f"Local optimization gave a better result.")
-            '''
+            
             # Get the point with the smallest norm found
             min_norm_final = best_result.fun
             min_point_final = best_result.x
-
-            # Print the results after minimization
-            if min_norm_final < 1e-3:
-                print(f"Found a zero vector at {min_point_final} with norm {min_norm_final}! Yipeee")
-            else:
-                print("No zero vector found. :( Boohoo")
-
-            print("Smallest norm found after minimization: " + str(min_norm_final))
+            print("Smallest norm found after minimization: " + str(min_norm_final), f"at point: {min_point_final}" , f"verification: {objective_function(min_point_final)}")
 
 if __name__ == '__main__':
     # Generate collocation points within a unit cube
