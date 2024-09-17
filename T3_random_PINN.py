@@ -34,7 +34,7 @@ class PINN:
         g22 = 1.9*(x[0]-0.5)**2
         g23 = 0.0
         g33 = 1.9*(x[1]-0.5)**2
-        #conformal_factor = 1.01 + tf.sin(2 * np.pi * x[0]) * \
+        # could instead multiply identity by conformal_factor = 1.01 + tf.sin(2 * np.pi * x[0]) * \
                                #tf.sin(2 * np.pi * x[1]) * \
                                #tf.sin(2 * np.pi * x[2])
     

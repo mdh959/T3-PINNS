@@ -32,4 +32,5 @@ Project outline:
 
 ## References:
 (1) [Raissi et al., 2017, *Physics Informed Deep Learning (Part I): Data-driven Solutions of Nonlinear Partial Differential Equations*](https://arxiv.org/abs/1711.10561)
+
 (2) [Kerofsky, Louis. (1995). *Harmonic forms under metric and topological perturbations.*](https://www.researchgate.net/publication/34310555_Harmonic_forms_under_metric_and_topological_perturbations)

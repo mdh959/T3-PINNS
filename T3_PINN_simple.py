@@ -30,7 +30,7 @@ class PINN:
         du_dx = tape.gradient(u, x)
         return du_dx[:, dim]  # extracting the partial derivative w.r.t specified dimension
 
-    def hodge_star_1_form(self, u):
+    def hodge_star_1_form(self, u): # Hodge star on a 1-form
         u1, u2, u3 = u[:, 0:1], u[:, 1:2], u[:, 2:3]
 
         # Hodge star operation
@@ -40,9 +40,9 @@ class PINN:
             u3     # coefficient of dx1 ^ dx2
         ], axis=1)
 
-        return star_u
+        return star_u # Output is a 2-form
 
-    def hodge_star_2_form(self, d_u):
+    def hodge_star_2_form(self, d_u): # Hodge star on a 2-form
         df2_dx3 = d_u[:, 3:4]
         df3_dx2 = d_u[:, 5:6]
         df3_dx1 = d_u[:, 4:5]
@@ -62,9 +62,9 @@ class PINN:
             f3_prime    # coefficient of dx3
         ], axis=1)
 
-        return star_d_u
+        return star_d_u # Output is a 1-form
 
-    def exterior_derivative_1_form(self, tape, u, x):
+    def exterior_derivative_1_form(self, tape, u, x): # Exterior derivative on a 1-form
         du1_dx2 = self.partial_derivative(tape, u[:, 0], x, 1)  # Partial derivative with respect to x2
         du1_dx3 = self.partial_derivative(tape, u[:, 0], x, 2)  # Partial derivative with respect to x3
         du2_dx1 = self.partial_derivative(tape, u[:, 1], x, 0)  # Partial derivative with respect to x1
@@ -74,19 +74,19 @@ class PINN:
 
         d_u = tf.stack([du1_dx2, du1_dx3, -du2_dx1, du2_dx3, du3_dx1, -du3_dx2], axis=1)
 
-        return d_u
+        return d_u # Output is a 2-form
 
-    def star_derivative_2_form(self, tape, u, x):
+    def star_derivative_2_form(self, tape, u, x): # Hodge star on a 3-form (output of exterior derivative on 2-form)
         du1_dx1 = self.partial_derivative(tape, u[:, 0], x, 0)
         du2_dx2 = self.partial_derivative(tape, u[:, 1], x, 1)
         du3_dx3 = self.partial_derivative(tape, u[:, 2], x, 2)
-        return du1_dx1 + du2_dx2 + du3_dx3
+        return du1_dx1 + du2_dx2 + du3_dx3 # Output is a 0-form
 
-    def derivative_function(self, tape, u, x):
+    def derivative_function(self, tape, u, x): # Exterior derivative on 0-form
         df_dx1 = self.partial_derivative(tape, u, x, 0)  # Partial derivative with respect to x1
         df_dx2 = self.partial_derivative(tape, u, x, 1)  # Partial derivative with respect to x2
         df_dx3 = self.partial_derivative(tape, u, x, 2)  # Partial derivative with respect to x3
-        return tf.stack([df_dx1, df_dx2, df_dx3], axis=1)
+        return tf.stack([df_dx1, df_dx2, df_dx3], axis=1) # Output is a 1-form
 
     def loss(self, x_collocation):
         with tf.GradientTape(persistent=True) as tape:
@@ -115,7 +115,7 @@ class PINN:
 
         return normalised_loss
 
-    def train(self, x_collocation, epochs, learning_rate):
+    def train(self, x_collocation, epochs, learning_rate): # train NN
         optimizer = tf.keras.optimizers.Adam(learning_rate)
         for epoch in range(epochs):
             with tf.GradientTape() as tape:
