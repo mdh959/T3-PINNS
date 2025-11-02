@@ -32,7 +32,6 @@ class PINN:
     def metric_tensor(self, x):
         # Use the random metric generator to create a random metric for the given point x
         g = self.random_metric_generator.generate_symmetric_matrix()
-        
         return g
 
     def partial_derivative(self, tape, u, x, dim):
