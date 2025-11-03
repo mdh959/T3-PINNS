@@ -181,25 +181,30 @@ class PINN:
         w = J[:, 0, 0] + J[:, 1, 1] + J[:, 2, 2]
         return tf.expand_dims(w, axis=1)          # (B,1)
 
-    # ---------- PDE loss (Laplace–Beltrami on components) ----------
-    def pde_error_at(self, x_point: tf.Tensor) -> tf.Tensor:
-        x = tf.expand_dims(x_point, axis=0)       # (1,3)
+    def pde_error(self, x):
+        # x shape: (3,)
+        x = tf.expand_dims(x, axis=0)
         with tf.GradientTape(persistent=True) as tape:
             tape.watch(x)
-            u = self.model(x)                     # (1,3)
-            error = 0.0
-            for i in range(3):
-                f = u[:, i:i+1]                   # (1,1)
-                df = self.grad_scalar(tape, f, x) # (1,3)
-                star_df = self.star_1form(df, x)                  # (1,3) 2-form
-                d_star_df = self.exterior_derivative_2_form(tape, star_df, x)  # (1,1) 3-form
-                star_d_star_df = self.star_3form(d_star_df, x)    # (1,1) 0-form
-                error += tf.reduce_sum(tf.square(star_d_star_df))
-        del tape
-        return error
+            u = self.model(x)  # (1,3), interpreted as a 1-form
+
+            # d u: (1,3) -> (1,3) in [23,31,12] components
+            d_u = self.exterior_derivative_1_form(tape, u, x)
+
+            # dela_u = * d (*u)
+            star_u = self.star_1form(u, x)                           # 2-form (1,3)
+            d_star_u = self.exterior_derivative_2_form(tape, star_u, x)  # 3-form (1,1)
+            delta_u = self.star_3form(d_star_u, x)                   # 0-form (1,1)
+
+            # Total error: ||d u||² + ||delta_u||²
+            err_d = tf.reduce_sum(tf.square(d_u))
+            err_delta = tf.reduce_sum(tf.square(delta_u))
+            error_total = err_d + err_delta
+
+        return error_total
 
     def loss(self, x_collocation: tf.Tensor) -> tf.Tensor:
-        errs = tf.vectorized_map(self.pde_error_at, x_collocation)
+        errs = tf.vectorized_map(self.pde_error, x_collocation)
         return tf.reduce_mean(errs)
 
     @tf.function

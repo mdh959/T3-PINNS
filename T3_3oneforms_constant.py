@@ -160,12 +160,12 @@ class PINN:
             # d u: (1,3) -> (1,3) in [23,31,12] components
             d_u = self.exterior_derivative_1_form(tape, u, x)
 
-            # δu = * d (*u)
+            # dela_u = * d (*u)
             star_u = self.star_1form(u, x)                           # 2-form (1,3)
             d_star_u = self.exterior_derivative_2_form(tape, star_u, x)  # 3-form (1,1)
             delta_u = self.star_3form(d_star_u, x)                   # 0-form (1,1)
 
-            # Total error: ||d u||² + ||δu||²
+            # Total error: ||d u||² + ||delta_u||²
             err_d = tf.reduce_sum(tf.square(d_u))
             err_delta = tf.reduce_sum(tf.square(delta_u))
             error_total = err_d + err_delta
@@ -174,7 +174,7 @@ class PINN:
 
 
     def loss(self, x_collocation: tf.Tensor) -> tf.Tensor:
-        errs = tf.vectorized_map(self.pde_error_at, x_collocation)
+        errs = tf.vectorized_map(self.pde_error, x_collocation)
         return tf.reduce_mean(errs)
 
     @tf.function
