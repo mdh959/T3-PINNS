@@ -49,15 +49,17 @@ class InputDependentRandomMetric:
     def tensor(self, x: tf.Tensor) -> tf.Tensor:
         """
         x: (B,3)
-        returns g(x): (B,3,3), SPD
+        returns g(x): (B,3,3), symmetric positive definite metric
         """
         x = tf.convert_to_tensor(x, dtype=tf.float64)
+        B = tf.shape(x)[0]  # batch size
+
         # periodic features
         s1 = tf.sin(2*np.pi*x[:, 0:1] + self.p[0]); c1 = tf.cos(2*np.pi*x[:, 0:1] + self.p[1])
         s2 = tf.sin(2*np.pi*x[:, 1:2] + self.p[2]); c2 = tf.cos(2*np.pi*x[:, 1:2] + self.p[3])
         s3 = tf.sin(2*np.pi*x[:, 2:3] + self.p[4]); c3 = tf.cos(2*np.pi*x[:, 2:3] + self.p[5])
 
-        # Build a symmetric matrix field H(x)
+        # Smooth symmetric components
         h11 = self.floor + self.a[0]*s1 + 0.05*c2
         h22 = self.floor + self.a[1]*s2 + 0.05*c3
         h33 = self.floor + self.a[2]*s3 + 0.05*c1
@@ -66,19 +68,21 @@ class InputDependentRandomMetric:
         h13 = 0.15*(s1*s3) - 0.05*c2
         h23 = 0.15*(s2*s3) + 0.05*c1
 
-        # Stack into symmetric matrix (B,3,3)
-        B = tf.stack([
+        # Correct stacking into (B,3,3)
+        g = tf.stack([
             tf.concat([h11, h12, h13], axis=1),
             tf.concat([h12, h22, h23], axis=1),
             tf.concat([h13, h23, h33], axis=1)
-        ], axis=1)  # (B,3,3) but with rows packed; fix to proper shape:
-        # The above produced shape (3, B, 3); we want (B,3,3). So transpose:
-        B = tf.transpose(B, perm=[1,0,2])
+        ], axis=-2)   # stack along second-to-last axis so we get (B,3,3)
 
-        # Ensure exact symmetry numerically and project to SPD
-        S = 0.5*(B + tf.transpose(B, perm=[0,2,1])) + 0.0*tf.eye(3, dtype=tf.float64)[None, ...]
-        g = make_spd_batch(S, min_eig=1e-2)  # (B,3,3) SPD
+        # Ensure exact symmetry
+        g = 0.5 * (g + tf.transpose(g, perm=[0, 2, 1]))
+
+        # Project to SPD by clamping eigenvalues
+        g = make_spd_batch(g, min_eig=1e-2)
+
         return g
+
 
 # ============================================================
 # PINN (Laplace–Beltrami on 1-forms)
@@ -278,7 +282,7 @@ if __name__ == "__main__":
     pinn = PINNWithRandomInputMetrics(seed=42)
     pinn.run_random_metrics(
         x_collocation,
-        num_runs=20,          # bump to 100 when you’re happy with speed
+        num_runs=100,          
         train_epochs=200,
         lr=1e-3,
         zero_tol=1e-3
