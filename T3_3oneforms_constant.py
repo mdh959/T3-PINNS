@@ -150,27 +150,28 @@ class PINN:
     # PDE Loss
     # ------------------------------------------------------------
 
-    def pde_error_at(self, x_point: tf.Tensor) -> tf.Tensor:
-        """Compute the residual error of the PDE at a single point."""
-        x = tf.expand_dims(x_point, axis=0)
+    def pde_error(self, x):
+        # x shape: (3,)
+        x = tf.expand_dims(x, axis=0)
         with tf.GradientTape(persistent=True) as tape:
             tape.watch(x)
-            u = self.model(x)
-            error = 0.0
+            u = self.model(x)  # (1,3), interpreted as a 1-form
 
-            for i in range(3):
-                f = u[:, i:i+1]
-                df = self.grad_scalar(tape, f, x) # 1-form
-                df_plus = df + tf.expand_dims(tf.one_hot(i, 3, dtype=tf.float64), 0)
+            # d u: (1,3) -> (1,3) in [23,31,12] components
+            d_u = self.exterior_derivative_1_form(tape, u, x)
 
-                star_df = self.star_1form(df_plus, x) # 2-form
-                d_star_df = self.exterior_derivative_2_form(tape, star_df, x) # 3-form
-                star_d_star_df = self.star_3form(d_star_df, x) # 0-form
+            # δu = * d (*u)
+            star_u = self.star_1form(u, x)                           # 2-form (1,3)
+            d_star_u = self.exterior_derivative_2_form(tape, star_u, x)  # 3-form (1,1)
+            delta_u = self.star_3form(d_star_u, x)                   # 0-form (1,1)
 
-                error += tf.reduce_sum(tf.square(star_d_star_df))
+            # Total error: ||d u||² + ||δu||²
+            err_d = tf.reduce_sum(tf.square(d_u))
+            err_delta = tf.reduce_sum(tf.square(delta_u))
+            error_total = err_d + err_delta
 
-        del tape
-        return error
+        return error_total
+
 
     def loss(self, x_collocation: tf.Tensor) -> tf.Tensor:
         errs = tf.vectorized_map(self.pde_error_at, x_collocation)

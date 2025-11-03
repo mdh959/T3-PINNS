@@ -30,9 +30,10 @@ def make_spd_batch(S: tf.Tensor, min_eig: float = 1e-2) -> tf.Tensor:
 
 class InputDependentRandomMetric:
     """
-    Smooth SPD metric g(x) on T^3.
-    Coefficients (amplitudes/phases) are random per run, but the metric varies with x.
+    Generates smooth, spatially varying SPD metrics on T³.
+    Each run randomises amplitudes/phases; within a run g(x) varies smoothly with x.
     """
+
     def __init__(self, seed: Optional[int] = None):
         self.reseed(seed)
 
