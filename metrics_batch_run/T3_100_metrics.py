@@ -203,9 +203,14 @@ class PINN:
 
         return error_total
 
-    def loss(self, x_collocation: tf.Tensor) -> tf.Tensor:
+    def loss(self, x_collocation):
         errs = tf.vectorized_map(self.pde_error, x_collocation)
-        return tf.reduce_mean(errs)
+        pde_term = tf.reduce_mean(errs)
+        u_vals = self.model(x_collocation)
+        norm_term = tf.reduce_mean(tf.square(u_vals))
+        # Penalise deviation from unit average norm
+        return pde_term + 1e2 * tf.square(norm_term - 1.0)
+
 
     @tf.function
     def compute_loss_and_gradients(self, x_collocation: tf.Tensor):
