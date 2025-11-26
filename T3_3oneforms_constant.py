@@ -160,7 +160,7 @@ class PINN:
             # d u: (1,3) -> (1,3) in [23,31,12] components
             d_u = self.exterior_derivative_1_form(tape, u, x)
 
-            # dela_u = * d (*u)
+            # delta_u = * d (*u)
             star_u = self.star_1form(u, x)                           # 2-form (1,3)
             d_star_u = self.exterior_derivative_2_form(tape, star_u, x)  # 3-form (1,1)
             delta_u = self.star_3form(d_star_u, x)                   # 0-form (1,1)

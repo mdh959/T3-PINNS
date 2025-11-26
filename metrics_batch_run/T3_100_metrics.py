@@ -124,7 +124,6 @@ class PINN:
         """
         beta: (B,3) with [b23, b31, b12]  →  returns 1-form (B,3)
         (*β)_k = 1/2 sqrt|g| ε_{kij} g^{ip} g^{jq} β_{pq}
-        Implemented with batch einsums.
         """
         g = self.metric_tensor(x)                 # (B,3,3)
         g_inv = tf.linalg.inv(g)                  # (B,3,3)
@@ -138,8 +137,7 @@ class PINN:
             tf.stack([zero,  b12,  -b31], axis=1),
             tf.stack([-b12, zero,   b23], axis=1),
             tf.stack([b31, -b23,  zero], axis=1)
-        ], axis=1)                                # (3,3,B) → fix to (B,3,3)
-        bmat = tf.transpose(bmat, perm=[2,0,1])
+        ], axis=1)                                # (B,3,3)
 
         # term_{ij} = g_inv^{ip} g_inv^{jq} β_{pq}
         term = tf.einsum('bip,bjq,bpq->bij', g_inv, g_inv, bmat)  # (B,3,3)
@@ -152,6 +150,7 @@ class PINN:
 
         star_b = 0.5 * tf.einsum('bij,kij->bk', term, eps) * sqrtg[:, None]  # (B,3)
         return star_b
+
 
     def star_3form(self, w_scalar: tf.Tensor, x: tf.Tensor) -> tf.Tensor:
         """
@@ -181,27 +180,33 @@ class PINN:
         w = J[:, 0, 0] + J[:, 1, 1] + J[:, 2, 2]
         return tf.expand_dims(w, axis=1)          # (B,1)
 
-    def pde_error(self, x):
-        # x shape: (3,)
-        x = tf.expand_dims(x, axis=0)
+        # ---------- PDE loss (Δλ = 0 via dλ = 0 and *d*λ = 0) ----------
+    def pde_error(self, x_point: tf.Tensor) -> tf.Tensor:
+        """
+        Harmonic 1-form condition:
+          dλ = 0      (2-form)
+          δλ = *d*λ = 0  (0-form)
+        We penalise both ||dλ||^2 and ||*d*λ||^2 at a single point.
+        """
+        x = tf.expand_dims(x_point, axis=0)   # (1,3)
         with tf.GradientTape(persistent=True) as tape:
             tape.watch(x)
-            u = self.model(x)  # (1,3), interpreted as a 1-form
+            lam = self.model(x)              # (1,3), interpreted as 1-form components λ_i
 
-            # d u: (1,3) -> (1,3) in [23,31,12] components
-            d_u = self.exterior_derivative_1_form(tape, u, x)
+            # dλ: 1-form -> 2-form [λ_23, λ_31, λ_12]
+            d_lam = self.exterior_derivative_1_form(tape, lam, x)      # (1,3)
 
-            # dela_u = * d (*u)
-            star_u = self.star_1form(u, x)                           # 2-form (1,3)
-            d_star_u = self.exterior_derivative_2_form(tape, star_u, x)  # 3-form (1,1)
-            delta_u = self.star_3form(d_star_u, x)                   # 0-form (1,1)
+            # δλ = *d*λ: 1-form -> 0-form
+            star_lam    = self.star_1form(lam, x)                      # (1,3)  (2-form)
+            d_star_lam  = self.exterior_derivative_2_form(tape, star_lam, x)  # (1,1) (3-form)
+            delta_lam   = self.star_3form(d_star_lam, x)               # (1,1)  (0-form)
 
-            # Total error: ||d u||² + ||delta_u||²
-            err_d = tf.reduce_sum(tf.square(d_u))
-            err_delta = tf.reduce_sum(tf.square(delta_u))
-            error_total = err_d + err_delta
-
+            err_d   = tf.reduce_sum(tf.square(d_lam))                  # ||dλ||^2
+            err_dd  = tf.reduce_sum(tf.square(delta_lam))              # ||*d*λ||^2
+            error_total   = err_d + err_dd
+        del tape
         return error_total
+
 
     def loss(self, x_collocation):
         errs = tf.vectorized_map(self.pde_error, x_collocation)
@@ -278,6 +283,26 @@ class PINNWithRandomInputMetrics(PINN):
         if not zero_found_any:
             print(f"No zeros found across {num_runs} input-dependent metrics.")
         return zero_found_any
+    
+    def test_hodge_involution(self, nsamples: int = 128):
+        x = tf.random.uniform((nsamples, 3), 0.0, 1.0, dtype=tf.float64)
+
+        # random 1-forms and 2-forms
+        alpha = tf.random.normal((nsamples, 3), dtype=tf.float64)  # 1-form
+        beta  = tf.random.normal((nsamples, 3), dtype=tf.float64)  # 2-form in [23,31,12] basis
+
+        # *(*α) + α should be ~ 0  (since *^2 = -Id on 1-forms)
+        star_alpha   = self.star_1form(alpha, x)
+        star_star_a  = self.star_2form(star_alpha, x)
+        err1 = tf.reduce_max(tf.abs(star_star_a + alpha))
+
+        # *(*β) + β should be ~ 0 on 2-forms
+        star_beta   = self.star_2form(beta, x)
+        star_star_b = self.star_1form(star_beta, x)
+        err2 = tf.reduce_max(tf.abs(star_star_b + beta))
+
+        return float(err1.numpy()), float(err2.numpy())
+
 
 # ============================================================
 # Main
@@ -291,6 +316,8 @@ if __name__ == "__main__":
     x_collocation = tf.convert_to_tensor(x_collocation, dtype=tf.float64)
 
     pinn = PINNWithRandomInputMetrics(seed=42)
+
+    print(pinn.test_hodge_involution())
     pinn.run_random_metrics(
         x_collocation,
         num_runs=100,          
