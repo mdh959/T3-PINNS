@@ -291,15 +291,14 @@ class PINNWithRandomInputMetrics(PINN):
         alpha = tf.random.normal((nsamples, 3), dtype=tf.float64)  # 1-form
         beta  = tf.random.normal((nsamples, 3), dtype=tf.float64)  # 2-form in [23,31,12] basis
 
-        # *(*α) + α should be ~ 0  (since *^2 = -Id on 1-forms)
-        star_alpha   = self.star_1form(alpha, x)
-        star_star_a  = self.star_2form(star_alpha, x)
-        err1 = tf.reduce_max(tf.abs(star_star_a + alpha))
+        # In 3D Riemannian: *^2 = +Id on 1- and 2-forms
+        star_alpha   = self.star_1form(alpha, x)      # 1-form -> 2-form
+        star_star_a  = self.star_2form(star_alpha, x) # 2-form -> 1-form
+        err1 = tf.reduce_max(tf.abs(star_star_a - alpha))
 
-        # *(*β) + β should be ~ 0 on 2-forms
-        star_beta   = self.star_2form(beta, x)
-        star_star_b = self.star_1form(star_beta, x)
-        err2 = tf.reduce_max(tf.abs(star_star_b + beta))
+        star_beta   = self.star_2form(beta, x)        # 2-form -> 1-form
+        star_star_b = self.star_1form(star_beta, x)   # 1-form -> 2-form
+        err2 = tf.reduce_max(tf.abs(star_star_b - beta))
 
         return float(err1.numpy()), float(err2.numpy())
 

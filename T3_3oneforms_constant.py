@@ -268,6 +268,25 @@ class PINNWithRandomMetrics(PINN):
             print(f"No zero 1-forms found after {num_runs} random metrics.")
 
         return zero_found
+    
+    def test_hodge_involution(self, nsamples: int = 128):
+            x = tf.random.uniform((nsamples, 3), 0.0, 1.0, dtype=tf.float64)
+
+            # random 1-forms and 2-forms
+            alpha = tf.random.normal((nsamples, 3), dtype=tf.float64)  # 1-form
+            beta  = tf.random.normal((nsamples, 3), dtype=tf.float64)  # 2-form in [23,31,12] basis
+
+            # *(*α) + α should be ~ 0  (since *^2 = -Id on 1-forms)
+            star_alpha   = self.star_1form(alpha, x)
+            star_star_a  = self.star_2form(star_alpha, x)
+            err1 = tf.reduce_max(tf.abs(star_star_a + alpha))
+
+            # *(*β) + β should be ~ 0 on 2-forms
+            star_beta   = self.star_2form(beta, x)
+            star_star_b = self.star_1form(star_beta, x)
+            err2 = tf.reduce_max(tf.abs(star_star_b + beta))
+
+            return float(err1.numpy()), float(err2.numpy())
 
 
 # ============================================================
@@ -283,6 +302,7 @@ if __name__ == "__main__":
     x_collocation = tf.convert_to_tensor(x_collocation, dtype=tf.float64)
 
     pinn = PINNWithRandomMetrics(seed=42)
+    print(pinn.test_hodge_involution())
     pinn.run_random_metrics(
         x_collocation,
         num_runs=100,
